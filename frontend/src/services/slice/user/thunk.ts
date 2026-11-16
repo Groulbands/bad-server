@@ -45,7 +45,7 @@ export const logoutUser = createAsyncThunk<ServerResponse<unknown>, void>(
     async (_, { extra: api }) => {
         const data = await api.logoutUser()
         setCookie('accessToken', '', { expires: new Date(0) })
-        setCookie('refreshToken', '', { expires: new Date(0) })
+        setCookie('csrfToken', '', { expires: new Date(0) })
         return data
     }
 )

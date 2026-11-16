@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express'
 import { FilterQuery, Error as MongooseError, Types } from 'mongoose'
+import escapeRegExp from '../utils/escapeRegExp'
 import BadRequestError from '../errors/bad-request-error'
 import NotFoundError from '../errors/not-found-error'
 import Order, { IOrder } from '../models/order'
@@ -30,13 +31,8 @@ export const getOrders = async (
 
         const filters: FilterQuery<Partial<IOrder>> = {}
 
-        if (status) {
-            if (typeof status === 'object') {
-                Object.assign(filters, status)
-            }
-            if (typeof status === 'string') {
-                filters.status = status
-            }
+        if (typeof status === 'string' && ['new', 'delivering', 'completed', 'cancelled'].includes(status)) {
+            filters.status = status
         }
 
         if (totalAmountFrom) {
@@ -90,7 +86,7 @@ export const getOrders = async (
         ]
 
         if (search) {
-            const searchRegex = new RegExp(search as string, 'i')
+            const searchRegex = new RegExp(escapeRegExp(String(search).slice(0, 100)), 'i')
             const searchNumber = Number(search)
 
             const searchConditions: any[] = [{ 'products.title': searchRegex }]
@@ -108,22 +104,27 @@ export const getOrders = async (
             filters.$or = searchConditions
         }
 
-        const sort: { [key: string]: any } = {}
+        const sort: Record<string, 1 | -1> = {}
+        const allowedSort = ['createdAt', 'orderNumber', 'totalAmount', 'status']
 
         if (sortField && sortOrder) {
-            sort[sortField as string] = sortOrder === 'desc' ? -1 : 1
+            const field = String(sortField)
+            if (allowedSort.includes(field)) sort[field] = sortOrder === 'desc' ? -1 : 1
         }
 
         aggregatePipeline.push(
             { $sort: sort },
-            { $skip: (Number(page) - 1) * Number(limit) },
-            { $limit: Number(limit) },
+            { $skip: (Math.max(1, Number(page) || 1) - 1) * Math.min(100, Math.max(1, Number(limit) || 10)) },
+            { $limit: Math.min(100, Math.max(1, Number(limit) || 10)) },
             {
                 $group: {
                     _id: '$_id',
                     orderNumber: { $first: '$orderNumber' },
                     status: { $first: '$status' },
                     totalAmount: { $first: '$totalAmount' },
+                    payment: { $first: '$payment' },
+                    deliveryAddress: { $first: '$deliveryAddress' },
+                    comment: { $first: '$comment' },
                     products: { $push: '$products' },
                     customer: { $first: '$customer' },
                     createdAt: { $first: '$createdAt' },
@@ -185,7 +186,7 @@ export const getOrdersCurrentUser = async (
 
         if (search) {
             // если не экранировать то получаем Invalid regular expression: /+1/i: Nothing to repeat
-            const searchRegex = new RegExp(search as string, 'i')
+            const searchRegex = new RegExp(escapeRegExp(String(search).slice(0, 100)), 'i')
             const searchNumber = Number(search)
             const products = await Product.find({ title: searchRegex })
             const productIds = products.map((product) => product._id)

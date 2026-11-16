@@ -24,12 +24,16 @@ export default function EditorInput({ onChange, value }: EditorInputProps) {
             if ($selection?.nodeName === 'A') {
                 document.execCommand('unlink')
             } else {
-                // eslint-disable-next-line no-alert
-                document.execCommand(
-                    'createLink',
-                    false,
-                    prompt('URL', '') || undefined
-                )
+                const input = prompt('URL', '')
+                if (!input) return
+                try {
+                    const url = new URL(input)
+                    if (url.protocol === 'https:' || url.protocol === 'http:') {
+                        document.execCommand('createLink', false, url.toString())
+                    }
+                } catch {
+                    // Ignore invalid URLs.
+                }
             }
         }
     )

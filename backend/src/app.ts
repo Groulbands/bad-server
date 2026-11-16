@@ -1,10 +1,11 @@
 import { errors } from 'celebrate'
 import cookieParser from 'cookie-parser'
-import cors from 'cors'
+import cors, { CorsOptions } from 'cors'
 import 'dotenv/config'
 import express, { json, urlencoded } from 'express'
 import mongoose from 'mongoose'
 import path from 'path'
+import { rateLimit } from './middlewares/rate-limit'
 import { DB_ADDRESS } from './config'
 import errorHandler from './middlewares/error-handler'
 import serveStatic from './middlewares/serverStatic'
@@ -13,18 +14,26 @@ import routes from './routes'
 const { PORT = 3000 } = process.env
 const app = express()
 
+app.disable('x-powered-by')
+app.set('trust proxy', 1)
 app.use(cookieParser())
+app.use(rateLimit(120, 60_000))
 
-app.use(cors())
+const allowedOrigins = (process.env.ORIGIN_ALLOW || 'http://localhost').split(',').map((origin) => origin.trim())
+const corsOptions: CorsOptions = {
+    credentials: true,
+    origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)),
+}
+app.use(cors(corsOptions))
 // app.use(cors({ origin: ORIGIN_ALLOW, credentials: true }));
 // app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(serveStatic(path.join(__dirname, 'public')))
 
-app.use(urlencoded({ extended: true }))
-app.use(json())
+app.use(urlencoded({ extended: false, limit: '50kb', parameterLimit: 50 }))
+app.use(json({ limit: '50kb' }))
 
-app.options('*', cors())
+app.options('*', cors(corsOptions))
 app.use(routes)
 app.use(errors())
 app.use(errorHandler)

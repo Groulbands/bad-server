@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express'
 import { FilterQuery } from 'mongoose'
+import escapeRegExp from '../utils/escapeRegExp'
 import NotFoundError from '../errors/not-found-error'
 import Order from '../models/order'
 import User, { IUser } from '../models/user'
@@ -92,7 +93,8 @@ export const getCustomers = async (
         }
 
         if (search) {
-            const searchRegex = new RegExp(search as string, 'i')
+            const searchTerm = String(search).slice(0, 100)
+            const searchRegex = new RegExp(escapeRegExp(searchTerm), 'i')
             const orders = await Order.find(
                 {
                     $or: [{ deliveryAddress: searchRegex }],
@@ -108,16 +110,18 @@ export const getCustomers = async (
             ]
         }
 
-        const sort: { [key: string]: any } = {}
+        const sort: Record<string, 1 | -1> = {}
+        const allowedSort = ['createdAt', 'name', 'lastOrderDate', 'totalAmount', 'orderCount']
 
         if (sortField && sortOrder) {
-            sort[sortField as string] = sortOrder === 'desc' ? -1 : 1
+            const field = String(sortField)
+            if (allowedSort.includes(field)) sort[field] = sortOrder === 'desc' ? -1 : 1
         }
 
         const options = {
             sort,
-            skip: (Number(page) - 1) * Number(limit),
-            limit: Number(limit),
+            skip: (Math.max(1, Number(page) || 1) - 1) * Math.min(100, Math.max(1, Number(limit) || 10)),
+            limit: Math.min(100, Math.max(1, Number(limit) || 10)),
         }
 
         const users = await User.find(filters, null, options).populate([
@@ -181,9 +185,14 @@ export const updateCustomer = async (
     try {
         const updatedUser = await User.findByIdAndUpdate(
             req.params.id,
-            req.body,
             {
-                new: true,
+                $set: {
+                    ...(typeof req.body.name === 'string' ? { name: req.body.name.slice(0, 30) } : {}),
+                    ...(typeof req.body.phone === 'string' ? { phone: req.body.phone.slice(0, 30) } : {}),
+                },
+            },
+            {
+                new: true, runValidators: true,
             }
         )
             .orFail(
