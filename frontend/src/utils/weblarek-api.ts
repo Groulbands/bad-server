@@ -227,23 +227,35 @@ export class WebLarekAPI extends Api implements IWebLarekAPI {
         )
     }
 
-    loginUser = (data: UserLoginBodyDto) => {
+    private getAnonymousCsrfToken = async (): Promise<string> => {
+        const data = await this.request<{ csrfToken: string }>('/auth/csrf-token', {
+            method: 'GET',
+            credentials: 'include',
+        })
+        return data.csrfToken
+    }
+
+    loginUser = async (data: UserLoginBodyDto) => {
+        const csrfToken = await this.getAnonymousCsrfToken()
         return this.request<UserResponseToken>('/auth/login', {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
             },
             credentials: 'include',
         })
     }
 
-    registerUser = (data: UserRegisterBodyDto) => {
+    registerUser = async (data: UserRegisterBodyDto) => {
+        const csrfToken = await this.getAnonymousCsrfToken()
         return this.request<UserResponseToken>('/auth/register', {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
             },
             credentials: 'include',
         })
