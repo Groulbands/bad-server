@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express'
 import { FilterQuery, Error as MongooseError, Types } from 'mongoose'
 import escapeRegExp from '../utils/escapeRegExp'
+import { normalizePagination, validateFlatQuery } from '../utils/query-parameters'
 import BadRequestError from '../errors/bad-request-error'
 import NotFoundError from '../errors/not-found-error'
 import Order, { IOrder } from '../models/order'
@@ -16,9 +17,9 @@ export const getOrders = async (
     next: NextFunction
 ) => {
     try {
+        validateFlatQuery(req.query)
+        const { currentPage, pageSize, skip } = normalizePagination(req.query)
         const {
-            page = 1,
-            limit = 10,
             sortField = 'createdAt',
             sortOrder = 'desc',
             status,
@@ -114,8 +115,8 @@ export const getOrders = async (
 
         aggregatePipeline.push(
             { $sort: sort },
-            { $skip: (Math.max(1, Number(page) || 1) - 1) * Math.min(100, Math.max(1, Number(limit) || 10)) },
-            { $limit: Math.min(100, Math.max(1, Number(limit) || 10)) },
+            { $skip: skip },
+            { $limit: pageSize },
             {
                 $group: {
                     _id: '$_id',
@@ -134,15 +135,15 @@ export const getOrders = async (
 
         const orders = await Order.aggregate(aggregatePipeline)
         const totalOrders = await Order.countDocuments(filters)
-        const totalPages = Math.ceil(totalOrders / Number(limit))
+        const totalPages = Math.ceil(totalOrders / pageSize)
 
         res.status(200).json({
             orders,
             pagination: {
                 totalOrders,
                 totalPages,
-                currentPage: Number(page),
-                pageSize: Number(limit),
+                currentPage,
+                pageSize,
             },
         })
     } catch (error) {
@@ -310,13 +311,26 @@ export const createOrder = async (
             return next(new BadRequestError('Неверная сумма заказа'))
         }
 
+        const safeComment = typeof comment === 'string'
+            ? comment.replace(/[&<>"']/g, (character: string) => {
+                const entities: Record<string, string> = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;',
+                }
+                return entities[character]
+            })
+            : ''
+
         const newOrder = new Order({
             totalAmount: total,
             products: items,
             payment,
             phone,
             email,
-            comment,
+            comment: safeComment,
             customer: userId,
             deliveryAddress: address,
         })

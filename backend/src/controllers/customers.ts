@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express'
 import { FilterQuery } from 'mongoose'
 import escapeRegExp from '../utils/escapeRegExp'
+import { normalizePagination, validateFlatQuery } from '../utils/query-parameters'
 import NotFoundError from '../errors/not-found-error'
 import Order from '../models/order'
 import User, { IUser } from '../models/user'
@@ -14,9 +15,9 @@ export const getCustomers = async (
     next: NextFunction
 ) => {
     try {
+        validateFlatQuery(req.query)
+        const { currentPage, pageSize, skip } = normalizePagination(req.query)
         const {
-            page = 1,
-            limit = 10,
             sortField = 'createdAt',
             sortOrder = 'desc',
             registrationDateFrom,
@@ -120,8 +121,8 @@ export const getCustomers = async (
 
         const options = {
             sort,
-            skip: (Math.max(1, Number(page) || 1) - 1) * Math.min(100, Math.max(1, Number(limit) || 10)),
-            limit: Math.min(100, Math.max(1, Number(limit) || 10)),
+            skip,
+            limit: pageSize,
         }
 
         const users = await User.find(filters, null, options).populate([
@@ -141,15 +142,15 @@ export const getCustomers = async (
         ])
 
         const totalUsers = await User.countDocuments(filters)
-        const totalPages = Math.ceil(totalUsers / Number(limit))
+        const totalPages = Math.ceil(totalUsers / pageSize)
 
         res.status(200).json({
             customers: users,
             pagination: {
                 totalUsers,
                 totalPages,
-                currentPage: Number(page),
-                pageSize: Number(limit),
+                currentPage,
+                pageSize,
             },
         })
     } catch (error) {

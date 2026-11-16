@@ -19,10 +19,13 @@ app.set('trust proxy', 1)
 app.use(cookieParser())
 app.use(rateLimit(120, 60_000))
 
-const allowedOrigins = (process.env.ORIGIN_ALLOW || 'http://localhost').split(',').map((origin) => origin.trim())
+const allowedOrigins = (process.env.ORIGIN_ALLOW || 'http://localhost:5173').split(',').map((origin) => origin.trim())
 const corsOptions: CorsOptions = {
     credentials: true,
-    origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)),
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, 'http://localhost:5173')
+        return callback(null, allowedOrigins.includes(origin) ? origin : false)
+    },
 }
 app.use(cors(corsOptions))
 // app.use(cors({ origin: ORIGIN_ALLOW, credentials: true }));

@@ -12,6 +12,10 @@ const signatures: Record<string, number[]> = {
 export const uploadFile = async (req: Request, res: Response, next: NextFunction) => {
     if (!req.file) return next(new BadRequestError('Файл не загружен'))
     try {
+        if (req.file.size <= 2 * 1024) {
+            await fs.unlink(req.file.path)
+            return next(new BadRequestError('Размер изображения должен превышать 2 КБ'))
+        }
         const file = await fs.open(req.file.path, 'r')
         const buffer = Buffer.alloc(8)
         await file.read(buffer, 0, 8, 0)
