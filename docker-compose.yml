@@ -6,22 +6,37 @@ services:
       - frontend/.env
     volumes:
       - frontend:/app/frontend/dist
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   mongo:
     image: mongo
     restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD}
     volumes:
       - db:/data/db
     ports:
-      - 27018:27017
+      - "127.0.0.1:27018:27017"
     networks:
       - internal
 
   backend:
     restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     build:
       context: backend
     env_file:
@@ -29,8 +44,6 @@ services:
     volumes:
       - ./backend/src:/app/src
       - public:/app/src/public
-    ports:
-      - 3000:3000
     networks:
       - internal
     depends_on:
@@ -39,8 +52,13 @@ services:
   server:
     build:
       context: nginx
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
-      - 80:80
+      - 8081:80
     volumes:
       - frontend:/var/app
       - public:/var/public

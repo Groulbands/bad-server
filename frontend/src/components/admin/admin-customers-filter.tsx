@@ -9,6 +9,7 @@ import { AppRoute } from '../../utils/constants'
 import Filter from '../filter'
 import styles from './admin.module.scss'
 import { customersFilterFields } from './helpers/customersFilterFields'
+import { FiltersCustomers } from '../../services/slice/customers/type'
 
 export default function AdminFilterCustomers() {
     const navigate = useNavigate()
@@ -18,23 +19,26 @@ export default function AdminFilterCustomers() {
     const filterCustomersOption = useSelector(
         customersSelector.selectFilterOption
     )
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleFilter = (filters: Record<string, unknown>) => {
+        // The Filter component only emits fields defined in customersFilterFields.
+        const normalized = Object.fromEntries(
+            Object.entries(filters).map(([key, value]) => [
+                key,
+                value !== null && typeof value === 'object' && 'value' in value
+                    ? value.value
+                    : value,
+            ])
+        ) as Partial<FiltersCustomers>
 
-    const handleFilter = (filters: Record<string, any>) => {
-        dispatch(updateFilter({ ...filters }))
-        const queryParams: { [key: string]: string } = {}
-        Object.entries(filters).forEach(([key, value]) => {
-            if (value) {
-                queryParams[key] =
-                    typeof value === 'object' ? value.value : value.toString()
+        dispatch(updateFilter(normalized))
+        const queryParams: Record<string, string> = {}
+        Object.entries(normalized).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && value !== '') {
+                queryParams[key] = String(value)
             }
         })
         setSearchParams(queryParams)
-        navigate(
-            `${AppRoute.AdminCustomers}?${new URLSearchParams(
-                queryParams
-            ).toString()}`
-        )
+        navigate(`${AppRoute.AdminCustomers}?${new URLSearchParams(queryParams)}`)
     }
 
     const handleClearFilters = () => {

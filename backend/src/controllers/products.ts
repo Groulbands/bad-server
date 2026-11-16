@@ -13,8 +13,8 @@ const getProducts = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { page = 1, limit = 5 } = req.query
         const options = {
-            skip: (Number(page) - 1) * Number(limit),
-            limit: Number(limit),
+            skip: (Math.max(1, Number(page) || 1) - 1) * Math.min(100, Math.max(1, Number(limit) || 5)),
+            limit: Math.min(100, Math.max(1, Number(limit) || 5)),
         }
         const products = await Product.find({}, null, options)
         const totalProducts = await Product.countDocuments({})
@@ -44,7 +44,7 @@ const createProduct = async (
 
         // Переносим картинку из временной папки
         if (image) {
-            movingFile(
+            await movingFile(
                 image.fileName,
                 join(__dirname, `../public/${process.env.UPLOAD_PATH_TEMP}`),
                 join(__dirname, `../public/${process.env.UPLOAD_PATH}`)
@@ -85,7 +85,7 @@ const updateProduct = async (
 
         // Переносим картинку из временной папки
         if (image) {
-            movingFile(
+            await movingFile(
                 image.fileName,
                 join(__dirname, `../public/${process.env.UPLOAD_PATH_TEMP}`),
                 join(__dirname, `../public/${process.env.UPLOAD_PATH}`)

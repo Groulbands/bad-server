@@ -4,6 +4,7 @@ import { constants } from 'http2'
 import jwt, { JwtPayload } from 'jsonwebtoken'
 import { Error as MongooseError } from 'mongoose'
 import { REFRESH_TOKEN } from '../config'
+import { setCsrfCookie } from '../middlewares/csrf'
 import BadRequestError from '../errors/bad-request-error'
 import ConflictError from '../errors/conflict-error'
 import NotFoundError from '../errors/not-found-error'
@@ -14,6 +15,9 @@ import User from '../models/user'
 const login = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { email, password } = req.body
+        if (typeof email !== 'string' || email.length > 254 || typeof password !== 'string' || password.length > 128) {
+            throw new BadRequestError('Некорректные данные входа')
+        }
         const user = await User.findUserByCredentials(email, password)
         const accessToken = user.generateAccessToken()
         const refreshToken = await user.generateRefreshToken()
@@ -22,6 +26,7 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
             refreshToken,
             REFRESH_TOKEN.cookie.options
         )
+        setCsrfCookie(res, refreshToken)
         return res.json({
             success: true,
             user,
@@ -36,6 +41,9 @@ const login = async (req: Request, res: Response, next: NextFunction) => {
 const register = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { email, password, name } = req.body
+        if (typeof email !== 'string' || email.length > 254 || typeof password !== 'string' || password.length > 128 || typeof name !== 'string' || name.length > 30) {
+            throw new BadRequestError('Некорректные данные регистрации')
+        }
         const newUser = new User({ email, password, name })
         await newUser.save()
         const accessToken = newUser.generateAccessToken()
@@ -46,6 +54,7 @@ const register = async (req: Request, res: Response, next: NextFunction) => {
             refreshToken,
             REFRESH_TOKEN.cookie.options
         )
+        setCsrfCookie(res, refreshToken)
         return res.status(constants.HTTP_STATUS_CREATED).json({
             success: true,
             user: newUser,
@@ -127,6 +136,7 @@ const logout = async (req: Request, res: Response, next: NextFunction) => {
             maxAge: -1,
         }
         res.cookie(REFRESH_TOKEN.cookie.name, '', expireCookieOptions)
+        res.clearCookie('csrfToken', { path: '/' })
         res.status(200).json({
             success: true,
         })
@@ -154,6 +164,7 @@ const refreshAccessToken = async (
             refreshToken,
             REFRESH_TOKEN.cookie.options
         )
+        setCsrfCookie(res, refreshToken)
         return res.json({
             success: true,
             user: userWithRefreshTkn,
@@ -165,15 +176,13 @@ const refreshAccessToken = async (
 }
 
 const getCurrentUserRoles = async (
-    req: Request,
+    _req: Request,
     res: Response,
     next: NextFunction
 ) => {
     const userId = res.locals.user._id
     try {
-        await User.findById(userId, req.body, {
-            new: true,
-        }).orFail(
+        await User.findById(userId).orFail(
             () =>
                 new NotFoundError(
                     'Пользователь по заданному id отсутствует в базе'
@@ -192,8 +201,12 @@ const updateCurrentUser = async (
 ) => {
     const userId = res.locals.user._id
     try {
-        const updatedUser = await User.findByIdAndUpdate(userId, req.body, {
-            new: true,
+        const { name, phone } = req.body
+        const changes: { name?: string; phone?: string } = {}
+        if (typeof name === 'string') changes.name = name.slice(0, 30)
+        if (typeof phone === 'string') changes.phone = phone.slice(0, 30)
+        const updatedUser = await User.findByIdAndUpdate(userId, { $set: changes }, {
+            new: true, runValidators: true,
         }).orFail(
             () =>
                 new NotFoundError(

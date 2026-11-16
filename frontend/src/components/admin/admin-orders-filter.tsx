@@ -6,6 +6,7 @@ import { AppRoute } from '../../utils/constants'
 import Filter from '../filter'
 import styles from './admin.module.scss'
 import { ordersFilterFields } from './helpers/ordersFilterFields'
+import { FiltersOrder } from '../../services/slice/orders/type'
 
 export default function AdminFilterOrders() {
     const navigate = useNavigate()
@@ -15,19 +16,25 @@ export default function AdminFilterOrders() {
     const { updateFilter, clearFilters } = useActionCreators(ordersActions)
     const filterOrderOption = useSelector(ordersSelector.selectFilterOption)
 
-    const handleFilter = (filters: Record<string, any>) => {
-        dispatch(updateFilter({ ...filters, status: filters.status.value }))
-        const queryParams: { [key: string]: string } = {}
-        Object.entries(filters).forEach(([key, value]) => {
-            if (value) {
-                queryParams[key] =
-                    typeof value === 'object' ? value.value : value.toString()
+    const handleFilter = (filters: Record<string, unknown>) => {
+        const normalized = Object.fromEntries(
+            Object.entries(filters).map(([key, value]) => [
+                key,
+                value !== null && typeof value === 'object' && 'value' in value
+                    ? value.value
+                    : value,
+            ])
+        ) as Partial<FiltersOrder>
+
+        dispatch(updateFilter(normalized))
+        const queryParams: Record<string, string> = {}
+        Object.entries(normalized).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && value !== '') {
+                queryParams[key] = String(value)
             }
         })
         setSearchParams(queryParams)
-        navigate(
-            `${AppRoute.AdminOrders}?${new URLSearchParams(queryParams).toString()}`
-        )
+        navigate(`${AppRoute.AdminOrders}?${new URLSearchParams(queryParams)}`)
     }
 
     const handleClearFilters = () => {

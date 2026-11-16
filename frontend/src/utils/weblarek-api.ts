@@ -67,8 +67,9 @@ class Api {
 
     private refreshToken = () => {
         return this.request<UserResponseToken>('/auth/token', {
-            method: 'GET',
+            method: 'POST',
             credentials: 'include',
+            headers: { 'X-CSRF-Token': getCookie('csrfToken') || '' },
         })
     }
 
@@ -78,7 +79,7 @@ class Api {
     ) => {
         try {
             return await this.request<T>(endpoint, options)
-        } catch (error) {
+        } catch {
             const refreshData = await this.refreshToken()
             if (!refreshData.success) {
                 return Promise.reject(refreshData)
@@ -226,23 +227,35 @@ export class WebLarekAPI extends Api implements IWebLarekAPI {
         )
     }
 
-    loginUser = (data: UserLoginBodyDto) => {
+    private getAnonymousCsrfToken = async (): Promise<string> => {
+        const data = await this.request<{ csrfToken: string }>('/auth/csrf-token', {
+            method: 'GET',
+            credentials: 'include',
+        })
+        return data.csrfToken
+    }
+
+    loginUser = async (data: UserLoginBodyDto) => {
+        const csrfToken = await this.getAnonymousCsrfToken()
         return this.request<UserResponseToken>('/auth/login', {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
             },
             credentials: 'include',
         })
     }
 
-    registerUser = (data: UserRegisterBodyDto) => {
+    registerUser = async (data: UserRegisterBodyDto) => {
+        const csrfToken = await this.getAnonymousCsrfToken()
         return this.request<UserResponseToken>('/auth/register', {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
             },
             credentials: 'include',
         })
@@ -293,8 +306,9 @@ export class WebLarekAPI extends Api implements IWebLarekAPI {
 
     logoutUser = () => {
         return this.request<ServerResponse<unknown>>('/auth/logout', {
-            method: 'GET',
+            method: 'POST',
             credentials: 'include',
+            headers: { 'X-CSRF-Token': getCookie('csrfToken') || '' },
         })
     }
 
