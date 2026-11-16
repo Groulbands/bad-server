@@ -1,8 +1,9 @@
+https://github.com/Groulbands/bad-server
 # WebLarek — аудит безопасности (спринт 17)
 
 ## Работа
 
-- **GitHub:** `https://github.com/Groulbands/bad-server`
+- **GitHub:** https://github.com/Groulbands/bad-server
 - **Автор:** Иволин Даниил Павлович.
 - **Когорта:** 50.
 - **Курс:** Яндекс Практикум, Fullstack-developer.
